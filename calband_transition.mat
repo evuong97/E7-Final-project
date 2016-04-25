@@ -1,0 +1,294 @@
+function [instructions] = calband_transition(initial_formation, target_formation, max_beats)
+%UNTITLED Summary of this function goes here
+%   Detailed explanation goes here
+
+
+n=max(max(initial_formation)); % finds the number of total band members
+% [Len,Wid]=size(initial_formation);
+tempfinal=target_formation; % does nothing as of now
+
+[yfT,xfT]=find(tempfinal==1); %finds the coordinates of the target formation
+yi=zeros(n,1);
+xi=yi;
+yf=yi;
+xf=yi;
+for i=1:n
+    [yi(i),xi(i)]=find(initial_formation==i); %finds the coordinates of the initial formation with index matching the number
+end
+
+% spliting up matrix to different things
+
+
+
+
+
+
+
+distancematrix=zeros(n);
+for i=1:n
+    distance=zeros(n,1);
+    for j=1:(n)
+        distance(j)=euclidean_distance(xi(i),yi(i),xfT(j),yfT(j));
+    end 
+    distancematrix(:,i)=distance;
+end
+distancematrixNew=distancematrix;
+
+%% using regression for distance
+rowvectorofMarchers=(1:1:n);
+
+
+squareMarchers=repmat(rowvectorofMarchers,n,1);
+columvectorofMarchers=reshape(squareMarchers, [(n*n) 1]);
+
+distanceColumn=reshape(distancematrix, [(n*n) 1]);
+columvectorofMarchers(distanceColumn>16,:)=[];
+distanceColumn(distanceColumn>16,:)=[];
+
+a=myLinearRegression(distanceColumn.^2,columvectorofMarchers);
+
+slope=a(1);
+intercept=a(2);
+f=@(x) slope*x+intercept;
+
+
+% a=myCubicRegression(distancematrix,columvectorofMarchers);
+% f=@(x) a(1)*exp(x)+x^2*a(2)+a(3)*x+a(4);
+distancematrix(distancematrix>16)=inf;
+distancematrix=distancematrix.^2;
+for i=1:n
+    %marcher number i
+    funcValue=f(i);
+
+    
+        for j=1:(n)%size
+            erdist(j)=abs(funcValue-distancematrix(j,i));
+        end 
+    num=find(erdist==min(erdist)); % finds the shortest distance
+    if size(num,2)>1
+        for z=1:length(num)
+            dyftemp(z)=abs(yfT(num(z))-yi(i));
+            dxftemp(z)=abs(xfT(num(z))-xi(i));
+        end
+        ymaxDistance=max(dyftemp);
+        xmaxDistance=max(dxftemp);
+        if ymaxDistance==xmaxDistance
+            num=num(1);
+        elseif ymaxDistance>xmaxDistance
+            x=find(max(dyftemp)==dyftemp);
+            x=x(1);
+            num=num(x);
+        elseif ymaxDistance<xmaxDistance
+            x=find(max(dxftemp)==dxftemp);
+            x=x(1);
+            num=num(x);
+        end
+    end
+    yf(i)=yfT(num);
+    xf(i)=xfT(num);
+    distancematrix(num,:)=Inf;
+    clear erdist
+    clear dyftemp
+    clear dxftemp
+end
+
+ %% using munkers
+% [a,c]=munkres(distancematrix);
+% 
+% for i=1:n
+%     yf(i)=yfT(a(i));
+%     xf(i)=xfT(a(i));
+% end
+%%
+
+%still need to figure out how to get the closest final position for each
+%marcher
+%     for i=1:n
+%         jes=0;
+%         sweptsquare='nothing';
+%         initial_positiony=yi(i);
+%         initial_positionx=xi(i);
+%         while ~isequal(zeros(jes+2),sweptsquare)% no indecies
+%             jes=jes+1;
+%             
+%             starty=initial_positiony-jes;
+%             endy=initial_positiony+jes;
+%             startx=initial_positionx-jes;
+%             endx=initial_positionx+jes;
+%             
+%                 if initial_positiony-jes<=0
+%                     starty=1;
+%                 end
+%                 if initial_positiony+jes>=Len+1
+%                     endy=Len;
+%                 end
+%                 if initial_positionx-jes<=0
+%                     startx=1;
+%                 end
+%                 if initial_positionx+jes>=Wid+1
+%                     endx=Wid;
+%                 end
+%             
+%             sweptsquare=tempfinal(starty:endy,startx:endx);
+%         end 
+% %         [ypossible,xpossible] = find(sweptsquare==1);
+% %         tempfinal(ypossible(1),xpossible(1))=0;
+% %         yf(1)=ypossible(1);
+% %         xf(1)=xpossible(1);
+%      end
+
+% sets the final coordinates for each marcher and the wait time
+
+for i=1:n
+    instructions(i).i_target=yf(i);
+    instructions(i).j_target=xf(i);
+    instructions(i).wait=0; %needs to be changed
+end
+
+dx=xf-xi; %finds the changes  
+dy=yf-yi;
+for i=1:n
+    if dx(i)==0 && dy(i)==0
+        instructions(i).direction='.';
+    elseif dx(i)==0 && dy(i)>0
+        instructions(i).direction='E';
+    elseif dx(i)==0 && dy(i)<0
+        instructions(i).direction='W';   
+    elseif dx(i)>0 && dy(i)==0 
+        instructions(i).direction='N';
+    elseif dx(i)<0 && dy(i)==0 
+        instructions(i).direction='S';
+    elseif dx(i)<0 && dy(i)<0 
+        instructions(i).direction='SW'; % or WS
+    elseif dx(i)>0 && dy(i)<0 
+        instructions(i).direction='NW'; % or WN
+    elseif dx(i)<0 && dy(i)>0 
+        instructions(i).direction='SE'; % or ES
+    elseif dx(i)>0 && dy(i)>0 
+        instructions(i).direction='NE'; % or EN
+    end
+end
+    [ first_collision, second_Marcher ] = testcollisions(initial_formation, target_formation, instructions, max_beats);
+    
+    
+% %% collision testing part
+% iterations=0;
+% maxpower=20;
+%         if first_collision==0
+%             return
+%         else
+%             for q=3:maxpower
+%                 distancematrix=distancematrixNew.^(q);
+%                 if q==maxpower
+%                     distancematrix=distancematrixNew.^(5);
+%                 end
+% %                iterations=iterations+1 %debugigng purposes
+% 
+%                 distanceColumn=reshape(distancematrix, [(n*n) 1]);
+%                 a=myLinearRegression(distanceColumn,columvectorofMarchers);
+% 
+%                 slope=a(1);
+%                 intercept=a(2);
+%                 f=@(x) slope*x+intercept;
+% 
+% 
+%         % a=myCubicRegression(distancematrix,columvectorofMarchers);
+%         % f=@(x) a(1)*exp(x)+x^2*a(2)+a(3)*x+a(4);
+% 
+% 
+%             for i=1:n
+%                 %marcher number i
+%                 funcValue=f(i);
+% 
+% 
+%                     for j=1:(n)
+%                         erdist(j)=abs(funcValue-distancematrix(j,i));
+%                     end 
+%                 num=find(erdist==min(erdist)); % finds the shortest distance
+%                 if size(num,2)>1
+%                     for z=1:length(num)
+%                         dyftemp(z)=abs(yfT(num(z))-yi(i));
+%                         dxftemp(z)=abs(xfT(num(z))-xi(i));
+%                     end
+%                     ymaxDistance=max(dyftemp);
+%                     xmaxDistance=max(dxftemp);
+%                     if ymaxDistance==xmaxDistance
+%                         num=num(1);
+%                     elseif ymaxDistance>xmaxDistance
+%                         x=find(max(dyftemp)==dyftemp);
+%                         x=x(1);
+%                         num=num(x);
+%                     elseif ymaxDistance<xmaxDistance
+%                         x=find(max(dxftemp)==dxftemp);
+%                         x=x(1);
+%                         num=num(x);
+%                     end
+%                 end
+%                 yf(i)=yfT(num);
+%                 xf(i)=xfT(num);
+%                 distancematrix(num,:)=Inf;
+%                 clear erdist
+%                 clear dyftemp
+%                 clear dxftemp
+%             end
+%             
+% for i=1:n
+%     instructions(i).i_target=yf(i);
+%     instructions(i).j_target=xf(i);
+%     instructions(i).wait=0; %needs to be changed
+% end
+% 
+% dx=xf-xi; %finds the changes  
+% dy=yf-yi;
+% for i=1:n
+%     if dx(i)==0 && dy(i)==0
+%         instructions(i).direction='.';
+%     elseif dx(i)==0 && dy(i)>0
+%         instructions(i).direction='E';
+%     elseif dx(i)==0 && dy(i)<0
+%         instructions(i).direction='W';   
+%     elseif dx(i)>0 && dy(i)==0 
+%         instructions(i).direction='N';
+%     elseif dx(i)<0 && dy(i)==0 
+%         instructions(i).direction='S';
+%     elseif dx(i)<0 && dy(i)<0 
+%         instructions(i).direction='SW'; % or WS
+%     elseif dx(i)>0 && dy(i)<0 
+%         instructions(i).direction='NW'; % or WN
+%     elseif dx(i)<0 && dy(i)>0 
+%         instructions(i).direction='SE'; % or ES
+%     elseif dx(i)>0 && dy(i)>0 
+%         instructions(i).direction='NE'; % or EN
+%     end
+% end
+%                     [ first_collision, second_Marcher ] = testcollisions(initial_formation, target_formation, instructions, max_beats);
+%                     
+%                         if first_collision==0
+%                             return
+%                         end
+% 
+%             end
+%         end
+ end
+
+function [D] = euclidean_distance(X_1, Y_1, X_2, Y_2)
+    %finds the distance between two sets of points in 2D space given two sets of points 
+    %(x1,y1) and (x2, y2). the distance is outputed by a column vector
+    %with the the distance between each set of points.
+    D=abs(X_1-X_2)+abs(Y_1-Y_2);
+end
+
+function [a] = myLinearRegression(x,y)
+%UNTITLED6 Summary of this function goes here
+%   Detailed explanation goes here
+a=pinv([x ones(length(x),1)])*y;
+
+end
+
+function [a] = myCubicRegression(x,y)
+%UNTITLED6 Summary of this function goes here
+%   Detailed explanation goes here
+a=pinv([exp(x) x^2 x ones(length(x),1)])*y;
+
+end
+
